@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Warehouse, Box, AlertTriangle, TrendingUp, Package, Snowflake, ArrowDownCircle, ArrowUpCircle, BarChart3, ArrowUpDown, ShieldAlert, TrendingDown, CheckCircle2 } from 'lucide-react';
-import type { OperationType } from '@/types';
+import { useState, useMemo } from 'react';
+import { Warehouse, Box, AlertTriangle, TrendingUp, Package, Snowflake, ArrowDownCircle, ArrowUpCircle, BarChart3, ArrowUpDown, ShieldAlert, TrendingDown, CheckCircle2, Hash } from 'lucide-react';
+import type { OperationType, RiskScore } from '@/types';
 import { useInventoryStore } from '@/store/useInventoryStore';
 import { OperationTabs } from '@/components/OperationPanel/OperationTabs';
 import { InboundForm } from '@/components/OperationPanel/InboundForm';
@@ -27,13 +27,6 @@ export default function Dashboard() {
     newScore: number;
     diff: number;
   } | null>(null);
-
-  useEffect(() => {
-    if (riskChangeInfo) {
-      const timer = setTimeout(() => setRiskChangeInfo(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [riskChangeInfo]);
   
   const { skus, batches, alerts } = useInventoryStore();
 
@@ -46,10 +39,10 @@ export default function Dashboard() {
   }, [activeTab, outboundSku, outboundQuantity, batches]);
 
   const skuRiskMap = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, RiskScore>();
     skus.forEach(sku => {
       const risk = calculateRiskScore(sku.id, sku.category, batches);
-      map.set(sku.id, risk.total);
+      map.set(sku.id, risk);
     });
     return map;
   }, [skus, batches]);
@@ -58,9 +51,9 @@ export default function Dashboard() {
     const skuList = [...skus];
     switch (sortType) {
       case 'riskDesc':
-        return skuList.sort((a, b) => (skuRiskMap.get(b.id) || 0) - (skuRiskMap.get(a.id) || 0));
+        return skuList.sort((a, b) => (skuRiskMap.get(b.id)?.total || 0) - (skuRiskMap.get(a.id)?.total || 0));
       case 'riskAsc':
-        return skuList.sort((a, b) => (skuRiskMap.get(a.id) || 0) - (skuRiskMap.get(b.id) || 0));
+        return skuList.sort((a, b) => (skuRiskMap.get(a.id)?.total || 0) - (skuRiskMap.get(b.id)?.total || 0));
       case 'stockDesc':
         return skuList.sort((a, b) => b.totalStock - a.totalStock);
       case 'stockAsc':
@@ -69,6 +62,21 @@ export default function Dashboard() {
         return skuList;
     }
   }, [skus, sortType, skuRiskMap]);
+
+  const selectedSkuRank = useMemo(() => {
+    if (!outboundSku) return -1;
+    return sortedSkus.findIndex(s => s.id === outboundSku) + 1;
+  }, [sortedSkus, outboundSku]);
+
+  const selectedSkuRisk = useMemo(() => {
+    if (!outboundSku) return null;
+    return skuRiskMap.get(outboundSku) || null;
+  }, [outboundSku, skuRiskMap]);
+
+  const selectedSkuName = useMemo(() => {
+    if (!outboundSku) return '';
+    return skus.find(s => s.id === outboundSku)?.name || '';
+  }, [outboundSku, skus]);
 
   const totalStock = useMemo(() => {
     return skus.reduce((sum, s) => sum + s.totalStock, 0);
@@ -79,8 +87,8 @@ export default function Dashboard() {
       const prevSku = skus.find(s => s.id === prevOutboundSku);
       const newSku = skus.find(s => s.id === skuId);
       if (prevSku && newSku) {
-        const prevRisk = skuRiskMap.get(prevOutboundSku) || 0;
-        const newRisk = skuRiskMap.get(skuId) || 0;
+        const prevRisk = skuRiskMap.get(prevOutboundSku)?.total || 0;
+        const newRisk = skuRiskMap.get(skuId)?.total || 0;
         const diff = newRisk - prevRisk;
         setRiskChangeInfo({
           prevName: prevSku.name,
@@ -261,68 +269,101 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {riskChangeInfo && (
-                <div className={`mb-4 p-3 rounded-lg border flex items-center justify-between transition-all duration-500 animate-pulse ${
-                  riskChangeInfo.diff > 0
-                    ? 'bg-red-500/10 border-red-500/30'
-                    : riskChangeInfo.diff < 0
+              {selectedSkuRisk && selectedSkuName && (
+                <div className={`mb-4 p-3 rounded-lg border transition-all duration-500 ${
+                  riskChangeInfo
+                    ? riskChangeInfo.diff > 0
+                      ? 'bg-red-500/10 border-red-500/30'
+                      : riskChangeInfo.diff < 0
+                      ? 'bg-emerald-500/10 border-emerald-500/30'
+                      : 'bg-slate-700/30 border-slate-600/50'
+                    : selectedSkuRisk.level === 'safe'
                     ? 'bg-emerald-500/10 border-emerald-500/30'
-                    : 'bg-slate-700/30 border-slate-600/50'
+                    : selectedSkuRisk.level === 'attention'
+                    ? 'bg-yellow-500/10 border-yellow-500/30'
+                    : selectedSkuRisk.level === 'danger'
+                    ? 'bg-orange-500/10 border-orange-500/30'
+                    : 'bg-red-500/10 border-red-500/30'
                 }`}>
-                  <div className="flex items-center gap-2">
-                    {riskChangeInfo.diff > 0 ? (
-                      <AlertTriangle size={16} className="text-red-400" />
-                    ) : riskChangeInfo.diff < 0 ? (
-                      <CheckCircle2 size={16} className="text-emerald-400" />
-                    ) : (
-                      <ShieldAlert size={16} className="text-slate-400" />
-                    )}
-                    <span className="text-sm text-slate-300">
-                      切换: <span className="font-semibold text-slate-200">{riskChangeInfo.prevName}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <ShieldAlert size={18} className={`${
+                        selectedSkuRisk.level === 'safe' ? 'text-emerald-400' :
+                        selectedSkuRisk.level === 'attention' ? 'text-yellow-400' :
+                        selectedSkuRisk.level === 'danger' ? 'text-orange-400' : 'text-red-400'
+                      }`} />
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-slate-300">
+                          当前: <span className="font-semibold text-slate-100">{selectedSkuName}</span>
+                        </span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded border ${
+                          selectedSkuRisk.level === 'safe' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                          selectedSkuRisk.level === 'attention' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                          selectedSkuRisk.level === 'danger' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+                          'bg-red-500/20 text-red-400 border-red-500/30'
+                        }`}>
+                          {selectedSkuRisk.levelLabel}
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-slate-400">
+                          <Hash size={12} />
+                          第 {selectedSkuRank} / {sortedSkus.length} 位
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500 mb-0.5">风险分</div>
+                        <div className={`font-mono text-xl font-bold tabular-nums ${
+                          selectedSkuRisk.level === 'safe' ? 'text-emerald-400' :
+                          selectedSkuRisk.level === 'attention' ? 'text-yellow-400' :
+                          selectedSkuRisk.level === 'danger' ? 'text-orange-400' : 'text-red-400'
+                        }`}>
+                          {selectedSkuRisk.total}
+                        </div>
+                      </div>
+                      {riskChangeInfo && (
+                        <div className={`flex items-center gap-1 text-sm font-semibold px-2 py-1 rounded ${
+                          riskChangeInfo.diff > 0
+                            ? 'bg-red-500/10 text-red-400'
+                            : riskChangeInfo.diff < 0
+                            ? 'bg-emerald-500/10 text-emerald-400'
+                            : 'bg-slate-700/30 text-slate-400'
+                        }`}>
+                          {riskChangeInfo.diff > 0 ? (
+                            <><TrendingUp size={14} /> +{riskChangeInfo.diff}</>
+                          ) : riskChangeInfo.diff < 0 ? (
+                            <><TrendingDown size={14} /> {riskChangeInfo.diff}</>
+                          ) : (
+                            <><CheckCircle2 size={14} /> 持平</>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {riskChangeInfo && (
+                    <div className="mt-2 pt-2 border-t border-slate-700/50 text-xs text-slate-400">
+                      切换: <span className="text-slate-300">{riskChangeInfo.prevName}</span>
                       {' → '}
-                      <span className="font-semibold text-slate-200">{riskChangeInfo.newName}</span>
+                      <span className="text-slate-200 font-medium">{riskChangeInfo.newName}</span>
                       {' · '}
-                      风险分 <span className="font-mono">{riskChangeInfo.prevScore}</span>
+                      <span className="font-mono">{riskChangeInfo.prevScore}</span>
                       {' → '}
-                      <span className={`font-mono font-bold ${
+                      <span className={`font-mono font-semibold ${
                         riskChangeInfo.diff > 0 ? 'text-red-400' : riskChangeInfo.diff < 0 ? 'text-emerald-400' : 'text-slate-400'
                       }`}>{riskChangeInfo.newScore}</span>
-                    </span>
-                  </div>
-                  <div className={`flex items-center gap-1 text-sm font-semibold ${
-                    riskChangeInfo.diff > 0 ? 'text-red-400' : riskChangeInfo.diff < 0 ? 'text-emerald-400' : 'text-slate-400'
-                  }`}>
-                    {riskChangeInfo.diff > 0 ? (
-                      <><TrendingUp size={14} /> 上升 {riskChangeInfo.diff} 分</>
-                    ) : riskChangeInfo.diff < 0 ? (
-                      <><TrendingDown size={14} /> 下降 {Math.abs(riskChangeInfo.diff)} 分</>
-                    ) : (
-                      '风险持平'
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {outboundSku && !riskChangeInfo && (
-                <div className="mb-4 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert size={16} className="text-cyan-400" />
-                    <span className="text-sm text-slate-300">
-                      当前选中: <span className="font-semibold text-cyan-400">{skus.find(s => s.id === outboundSku)?.name}</span>
-                      {' · '}
-                      风险分: <span className="font-mono font-bold text-cyan-400">{skuRiskMap.get(outboundSku) || 0}</span>
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500">切换商品可查看风险变化</span>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-4 max-h-[calc(100vh-520px)] overflow-y-auto pr-2 custom-scrollbar">
-                {sortedSkus.map((sku) => (
+                {sortedSkus.map((sku, index) => (
                   <SKUCard
                     key={sku.id}
                     sku={sku}
                     batches={batches}
+                    isSelected={outboundSku === sku.id}
+                    rankIndex={index + 1}
                     previewAllocations={
                       activeTab === 'outbound' && previewAllocations && outboundSku === sku.id
                         ? previewAllocations

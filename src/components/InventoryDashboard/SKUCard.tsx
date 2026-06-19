@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Package, ChevronDown, ChevronUp, Snowflake, AlertTriangle, XCircle, ShieldAlert } from 'lucide-react';
+import { Package, ChevronDown, ChevronUp, Snowflake, AlertTriangle, XCircle, ShieldAlert, Pin } from 'lucide-react';
 import type { SKU as SKUType, Batch, AllocationItem } from '@/types';
 import { BatchQueue } from './BatchQueue';
 import { getSkuFrozenStock, getSkuExpiredStock, getSkuWarningStock, calculateRiskScore } from '@/utils/inventoryCalculator';
@@ -8,9 +8,11 @@ interface SKUCardProps {
   sku: SKUType;
   batches: Batch[];
   previewAllocations?: AllocationItem[];
+  isSelected?: boolean;
+  rankIndex?: number;
 }
 
-export function SKUCard({ sku, batches, previewAllocations = [] }: SKUCardProps) {
+export function SKUCard({ sku, batches, previewAllocations = [], isSelected = false, rankIndex }: SKUCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const skuBatches = batches.filter(b => b.skuId === sku.id);
@@ -70,7 +72,28 @@ export function SKUCard({ sku, batches, previewAllocations = [] }: SKUCardProps)
   const riskColors = getRiskColorClasses();
 
   return (
-    <div className={`rounded-xl border transition-all duration-300 overflow-hidden ${riskColors.bg} ${riskColors.border} hover:brightness-110`}>
+    <div className={`rounded-xl border-2 transition-all duration-300 overflow-hidden relative ${
+      isSelected
+        ? `${riskColors.border} ring-2 ring-offset-2 ring-offset-slate-900 ring-cyan-400/60 shadow-lg shadow-cyan-500/10 scale-[1.02]`
+        : `border ${riskColors.bg} ${riskColors.border} hover:brightness-110`
+    }`}>
+      {isSelected && (
+        <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-cyan-400 via-cyan-300 to-cyan-400 animate-pulse" />
+      )}
+      {typeof rankIndex === 'number' && rankIndex > 0 && (
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {isSelected && (
+            <Pin size={12} className="text-cyan-400" />
+          )}
+          <span className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded ${
+            rankIndex <= 3
+              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+              : 'bg-slate-700/60 text-slate-400 border border-slate-600/50'
+          }`}>
+            #{rankIndex}
+          </span>
+        </div>
+      )}
       <div
         className="p-4 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -85,6 +108,11 @@ export function SKUCard({ sku, batches, previewAllocations = [] }: SKUCardProps)
                 <h3 className="font-semibold text-slate-100">{sku.name}</h3>
                 {riskScore.level !== 'safe' && (
                   <ShieldAlert size={14} className={`${riskColors.iconColor} animate-pulse`} />
+                )}
+                {isSelected && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                    已选中
+                  </span>
                 )}
               </div>
               <p className="text-xs text-slate-500 font-mono">{sku.skuCode}</p>
