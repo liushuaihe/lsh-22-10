@@ -47,10 +47,6 @@ export function OutboundForm({ onStateChange }: OutboundFormProps) {
     }
   };
 
-  const getSkuName = (skuId: string) => {
-    return skus.find(s => s.id === skuId)?.name || skuId;
-  };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="text-center mb-6">

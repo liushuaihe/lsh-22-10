@@ -15,10 +15,6 @@ export function FreezeForm() {
       )
     : [];
 
-  const getSkuName = (skuId: string) => {
-    return skus.find(s => s.id === skuId)?.name || skuId;
-  };
-
   const handleToggleFreeze = (batchId: string) => {
     toggleFreeze(batchId);
   };

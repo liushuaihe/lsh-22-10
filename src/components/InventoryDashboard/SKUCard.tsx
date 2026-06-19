@@ -21,8 +21,6 @@ export function SKUCard({ sku, batches, previewAllocations = [] }: SKUCardProps)
   const riskScore = useMemo(() => {
     return calculateRiskScore(sku.id, sku.category, batches);
   }, [sku.id, sku.category, batches]);
-  
-  const hasWarning = warningStock > 0 || frozenStock > 0 || expiredStock > 0;
 
   const getRiskColorClasses = () => {
     switch (riskScore.level) {

@@ -1,5 +1,5 @@
 import type { Batch, RiskScore, RiskLevel } from '@/types';
-import { riskWeights, getLowStockThreshold, getRiskLevel } from '@/data/riskConfig';
+import { riskWeights, getLowStockThreshold, getRiskLevel, getFrozenThreshold } from '@/data/riskConfig';
 
 export function calculateDaysRemaining(expiryDate: string): number {
   const today = new Date();
@@ -107,8 +107,9 @@ export function calculateRiskScore(
     ? Math.min(100, (warningStock / totalStock) * 100)
     : 0;
 
-  const frozenScore = totalStock > 0
-    ? Math.min(100, (frozenStock / totalStock) * 100)
+  const frozenThreshold = getFrozenThreshold(category);
+  const frozenScore = frozenThreshold > 0
+    ? Math.min(100, (frozenStock / frozenThreshold) * 100)
     : 0;
 
   const expiredScore = totalBatchCount > 0

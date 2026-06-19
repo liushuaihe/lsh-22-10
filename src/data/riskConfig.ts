@@ -10,6 +10,11 @@ export interface LowStockThreshold {
   threshold: number;
 }
 
+export interface FrozenThreshold {
+  category: string;
+  threshold: number;
+}
+
 export interface RiskLevelConfig {
   level: string;
   minScore: number;
@@ -34,6 +39,15 @@ export const lowStockThresholds: LowStockThreshold[] = [
   { category: '生鲜', threshold: 40 },
 ];
 
+export const frozenThresholds: FrozenThreshold[] = [
+  { category: '乳品', threshold: 50 },
+  { category: '禽蛋', threshold: 80 },
+  { category: '烘焙', threshold: 20 },
+  { category: '肉类', threshold: 15 },
+  { category: '饮料', threshold: 40 },
+  { category: '生鲜', threshold: 25 },
+];
+
 export const riskLevels: RiskLevelConfig[] = [
   { level: 'safe', minScore: 0, maxScore: 30, label: '低风险', color: 'emerald' },
   { level: 'attention', minScore: 30, maxScore: 60, label: '中风险', color: 'orange' },
@@ -44,6 +58,11 @@ export const riskLevels: RiskLevelConfig[] = [
 export const getLowStockThreshold = (category: string): number => {
   const config = lowStockThresholds.find(t => t.category === category);
   return config?.threshold ?? 50;
+};
+
+export const getFrozenThreshold = (category: string): number => {
+  const config = frozenThresholds.find(t => t.category === category);
+  return config?.threshold ?? 30;
 };
 
 export const getRiskLevel = (score: number): RiskLevelConfig => {

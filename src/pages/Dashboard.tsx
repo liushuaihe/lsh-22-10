@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import { Warehouse, Box, AlertTriangle, TrendingUp, Package, Snowflake, ArrowDownCircle, ArrowUpCircle, BarChart3, ArrowUpDown, ShieldAlert } from 'lucide-react';
-import type { OperationType, SKU } from '@/types';
+import { useState, useMemo, useEffect } from 'react';
+import { Warehouse, Box, AlertTriangle, TrendingUp, Package, Snowflake, ArrowDownCircle, ArrowUpCircle, BarChart3, ArrowUpDown, ShieldAlert, TrendingDown, CheckCircle2 } from 'lucide-react';
+import type { OperationType } from '@/types';
 import { useInventoryStore } from '@/store/useInventoryStore';
 import { OperationTabs } from '@/components/OperationPanel/OperationTabs';
 import { InboundForm } from '@/components/OperationPanel/InboundForm';
@@ -20,6 +20,20 @@ export default function Dashboard() {
   const [outboundQuantity, setOutboundQuantity] = useState('');
   const [sortType, setSortType] = useState<SortType>('riskDesc');
   const [prevOutboundSku, setPrevOutboundSku] = useState('');
+  const [riskChangeInfo, setRiskChangeInfo] = useState<{
+    prevName: string;
+    newName: string;
+    prevScore: number;
+    newScore: number;
+    diff: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (riskChangeInfo) {
+      const timer = setTimeout(() => setRiskChangeInfo(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [riskChangeInfo]);
   
   const { skus, batches, alerts } = useInventoryStore();
 
@@ -68,8 +82,13 @@ export default function Dashboard() {
         const prevRisk = skuRiskMap.get(prevOutboundSku) || 0;
         const newRisk = skuRiskMap.get(skuId) || 0;
         const diff = newRisk - prevRisk;
-        const direction = diff > 0 ? '上升' : diff < 0 ? '下降' : '持平';
-        console.log(`商品切换: ${prevSku.name} → ${newSku.name}, 风险分 ${prevRisk} → ${newRisk} (${direction}${Math.abs(diff)}分)`);
+        setRiskChangeInfo({
+          prevName: prevSku.name,
+          newName: newSku.name,
+          prevScore: prevRisk,
+          newScore: newRisk,
+          diff,
+        });
       }
     }
     setPrevOutboundSku(skuId);
@@ -81,7 +100,6 @@ export default function Dashboard() {
   const activeAlerts = alerts.filter(a => !a.isRead).length;
   const warningBatches = batches.filter(b => b.status === 'warning' && !b.isFrozen).length;
   const frozenBatches = batches.filter(b => b.isFrozen).length;
-  const expiredBatches = batches.filter(b => b.status === 'expired').length;
 
   const stats = [
     { label: '总库存', value: totalStock, icon: Package, color: 'cyan' },
@@ -243,7 +261,49 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {outboundSku && (
+              {riskChangeInfo && (
+                <div className={`mb-4 p-3 rounded-lg border flex items-center justify-between transition-all duration-500 animate-pulse ${
+                  riskChangeInfo.diff > 0
+                    ? 'bg-red-500/10 border-red-500/30'
+                    : riskChangeInfo.diff < 0
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : 'bg-slate-700/30 border-slate-600/50'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {riskChangeInfo.diff > 0 ? (
+                      <AlertTriangle size={16} className="text-red-400" />
+                    ) : riskChangeInfo.diff < 0 ? (
+                      <CheckCircle2 size={16} className="text-emerald-400" />
+                    ) : (
+                      <ShieldAlert size={16} className="text-slate-400" />
+                    )}
+                    <span className="text-sm text-slate-300">
+                      切换: <span className="font-semibold text-slate-200">{riskChangeInfo.prevName}</span>
+                      {' → '}
+                      <span className="font-semibold text-slate-200">{riskChangeInfo.newName}</span>
+                      {' · '}
+                      风险分 <span className="font-mono">{riskChangeInfo.prevScore}</span>
+                      {' → '}
+                      <span className={`font-mono font-bold ${
+                        riskChangeInfo.diff > 0 ? 'text-red-400' : riskChangeInfo.diff < 0 ? 'text-emerald-400' : 'text-slate-400'
+                      }`}>{riskChangeInfo.newScore}</span>
+                    </span>
+                  </div>
+                  <div className={`flex items-center gap-1 text-sm font-semibold ${
+                    riskChangeInfo.diff > 0 ? 'text-red-400' : riskChangeInfo.diff < 0 ? 'text-emerald-400' : 'text-slate-400'
+                  }`}>
+                    {riskChangeInfo.diff > 0 ? (
+                      <><TrendingUp size={14} /> 上升 {riskChangeInfo.diff} 分</>
+                    ) : riskChangeInfo.diff < 0 ? (
+                      <><TrendingDown size={14} /> 下降 {Math.abs(riskChangeInfo.diff)} 分</>
+                    ) : (
+                      '风险持平'
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {outboundSku && !riskChangeInfo && (
                 <div className="mb-4 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ShieldAlert size={16} className="text-cyan-400" />
@@ -253,7 +313,7 @@ export default function Dashboard() {
                       风险分: <span className="font-mono font-bold text-cyan-400">{skuRiskMap.get(outboundSku) || 0}</span>
                     </span>
                   </div>
-                  <span className="text-xs text-slate-500">切换商品时将在控制台显示风险变化</span>
+                  <span className="text-xs text-slate-500">切换商品可查看风险变化</span>
                 </div>
               )}
 
